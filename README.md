@@ -8,16 +8,26 @@
 
 ## The purpose of this fork, in one sentence
 
-A small Android app called `com.eyegaze` needs to track where a child's eyes are looking while they read a page on a Surface Duo — accurately enough to tell which *word* on the page they are fixating on, not just what region of the screen the face is roughly pointed at.
+An Android app, called `com.eyegaze`, is being built for **private use** by its author. That is the whole reason this fork exists. No product, no distribution, no sales channel.
 
-Google's `face_landmarker.task` gives accurate face landmarks but **no iris position**, so the app had to guess eye position from facial geometry. This fork exists to make a proper iris-tracking library callable from that app.
+## What a reader will want to know
+
+**Why is it public at all?** Because the account that hosts this repository publishes the work that gets done on every session — this public record is documentation, not a promotion. The "product" angle literally does not exist.
+
+**What does the app do?** Measures the position of a person's eyes on a phone screen, so that whoever built it can know which word on a page is being fixated on — not which region of the screen the face is pointed at. That is finer than anything a phone camera can deliver by default, and the existing stock face-mesh model (Google's `face_landmarker.task`) is not sufficient for that level of precision.
+
+**Why does this matter to anyone else?** It probably does not, directly. If you reached this repository looking for an off-the-shelf library for something similar, what you actually want is [`cornpip/mediapipe_face_mesh`](https://github.com/cornpip/mediapipe_face_mesh) — this fork changes none of that library's behavior. This fork exists so that a specific private app, on a specific Surface Duo, can build against the native library without pulling in a Flutter plugin it has no use for. That is the entire delta.
+
+**Is it maintained?** Care provided will be purely of the build shape (CI, README, release cadence, JNI bridge). The underlying C++, the TFLite models, and the license notices are unchanged from upstream.
+
+**Can I reuse it?** Yes. The two `.so` files plus the TFLite models bundled in the release are what make any of this interesting; everything else is plumbing.
 
 The library answers two questions, fast, from a camera frame:
 
 1. **"Where is the face?"** Roughly: which pixels belong to the face and where are the eyes, nose, mouth.
 2. **"Where is the pupil?"** 5 points per eye, with sub-pixel precision.
 
-Why you might care: building an eye-tracking reader, a fatigue detector, or anything that needs to know where on the screen your attention is.
+If you want to build anything that consumes `libmediapipe_face_mesh.so`, you have everything you need right here — and you do not need to care about the `com.eyegaze` context at all. This fork's value for you is the prebuilt artifacts and the build arrangement.
 
 ## What changed vs upstream
 
