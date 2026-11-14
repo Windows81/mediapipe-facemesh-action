@@ -46,6 +46,87 @@ Three files, one goal: fast eye-region tracking in a plain Android app.
 - `mp_face_mesh_last_error` — what went wrong.
 - `mp_face_mesh_destroy` — destroy the context.
 
+## Working example (real, in-app)
+
+This is the class Windows81's `com.eyegaze` reader uses verbatim, trimmed only on import:
+
+```kotlin
+final class EyegazeFaceMeshNative(Context ctx) : AutoCloseable {
+    init {
+        System.loadLibrary("mpfm_tensorflowlite_c")
+        System.loadLibrary("mediapipe_face_mesh")
+        System.loadLibrary("eygaze_mesh_jni")
+    }
+    private var handle: Long = 0L
+
+    constructor(ctx: Context) : this(ctx) {
+        copyModelFromAssetsToFiles(ctx)
+        handle = nativeCreate(File(ctx.filesDir, MODEL_FILE).absolutePath)
+        check(handle != 0L) { "nativeCreate failed — see 'nativeCreate' log (tag:eyegaze)" }
+    }
+
+    fun extract(yBuffer: ByteBuffer, vuBuffer: ByteBuffer,
+                width: Int, height: Int,
+                yRowStride: Int, vuRowStride: Int, rotationDegrees: Int): FloatArray? {
+        if (handle == 0L) return null
+        val features = nativeFeatureExtractNv21(handle, yBuffer, vuBuffer,
+                width, height, yRowStride, vuRowStride, rotationDegrees)
+        if (features == null) return null
+        return if (features.all { it.isNaN() }) null else features
+    }
+
+    override fun close() {
+        if (handle != 0L) { nativeDestroy(handle); handle = 0L }
+    }
+
+    private external fun nativeCreate(modelPath: String): Long
+    private external fun nativeDestroy(handle: Long)
+    private external fun nativeFeatureExtractNv21(
+        handle: Long, yBuffer: ByteBuffer, vuBuffer: ByteBuffer,
+        width: Int, height: Int, yRowStride: Int, vuRowStride: Int,
+        rotationDegrees: Int): FloatArray
+}
+```
+
+And this is the camera callback used by `EyeGazeService`:
+
+```kotlin
+private val bridge = EyegazeFaceMeshNative(this)
+
+private fun onFrame(image: Image, now: Long) {
+    image.planes.let { planes ->
+        val y = planes[0].buffer
+        val vu = planes[2].buffer   // NV21 layout: Y plane followed by interleaved VU
+        val features = bridge.extract(y, vu, image.width, image.height,
+            planes[0].rowStride, planes[2].rowStride, 270)   // 270° sensor orientation
+        if (features != null) {
+            LAST_FEATURE = features
+        }
+    }
+}
+```
+
+## Reading the native logs
+
+The bridge logs through Android's tag `eyegaze` (Java) and `MP_LOGI`/`MP_LOGE` (C) at boot:
+
+```
+I eyegaze : native libraries loaded              <- all three .so files resolved
+I EyeGaze : EyegazeFaceMeshNative ready           <- the JNI bridge constructed
+D eyegaze : nativeFeatureExtractNv21: handle=... <- one line per frame
+W eyegaze : nativeFeatureExtractNv21 all-NaN     <- no face found this frame
+W EyeGaze : EyegazeFaceMeshNative init failed     <- bad model file or load error
+```
+
+Watch for the two distinct failure modes:
+
+- **all-NaN every frame** — usually a bad rotation (the model wants the face oriented
+  upright for the sensor you used), a missing model file path (the bridge copies
+  `face_landmark_with_attention.tflite` from `assets/` into `filesDir`
+  on first use), or insufficient contrast (very low light reads all-NaN).
+- **init failed** — the `.so` chain didn't load. If you see this, check
+  `libmpfm_tensorflowlite_c.so` is under `jniLibs/<your-abi>/` next to `libmediapipe_face_mesh.so`.
+
 ## Minimal example
 
 ```kotlin
