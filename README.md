@@ -34,15 +34,18 @@ Three files, one goal: fast eye-region tracking in a plain Android app.
 
 **JNI bridge** (from Kotlin/Java):
 
-- `nativeCreate(modelPath: String): Long` — start tracking. Returns a handle.
+- `nativeCreate(modelPath: String, detectorPath: String): Long` — start tracking. Returns a handle; 0 when either model fails to initialise.
 - `nativeFeatureExtractNv21(handle, yBuf, vuBuf, width, height, yRowStride, vuRowStride, rotationDegrees): FloatArray` — one NV21 camera frame in, 9-float eye-feature vector out (NaN when no face).
 - `nativeDestroy(handle: Long)` — stop tracking.
 
 **Plain C** (via your own JNI shim):
 
-- `mp_face_mesh_create` — start a context.
+- `mp_face_mesh_create` — start a mesh context.
 - `mp_face_mesh_process_nv21` — feed NV21, get landmarks.
 - `mp_face_mesh_release_result` — free the result.
+- `mp_face_detector_create` — start a BlazeFace full-range context (required: the attention model needs its rect).
+- `mp_face_detector_process_nv21` — feed NV21, get face detections (use `expanded_face_rect` as the mesh override).
+- `mp_face_detector_release_result` — free the detections.
 - `mp_face_mesh_last_error` — what went wrong.
 - `mp_face_mesh_destroy` — destroy the context.
 
@@ -142,7 +145,9 @@ Watch for the two distinct failure modes:
 ## Minimal example
 
 ```kotlin
-val handle = EyegazeFaceMeshNative.nativeCreate(filesDir.resolve("face_landmark_with_attention.tflite").absolutePath)
+val handle = EyegazeFaceMeshNative.nativeCreate(
+    filesDir.resolve("face_landmark_with_attention.tflite").absolutePath,
+    filesDir.resolve("face_detection_full_range.tflite").absolutePath)
 val features = EyegazeFaceMeshNative.nativeFeatureExtractNv21(
     handle, yBuf, vuBuf, width, height, yRowStride, vuRowStride, rotationDegrees)
 EyegazeFaceMeshNative.nativeDestroy(handle)
