@@ -278,7 +278,9 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
         }
         // Same 2 Hz probe: raw iris landmark coordinates (clamped already), for the
         // edges diagnostic. 468-472 = iris group A; 473-477 = iris group B.
-        if (result && probe) {
+        // Only when the mesh actually produced a full 478-point array: the low-score
+        // path deletes result->landmarks and nulls it (face below confidence).
+        if (result && probe && result->landmarks && result->landmarks_count >= 478) {
             const MpLandmark* lm = result->landmarks;
             __android_log_print(ANDROID_LOG_INFO, kLogTag,
                 "iris: 468=%.4f,%.4f 469=%.4f,%.4f 470=%.4f,%.4f 471=%.4f,%.4f 472=%.4f,%.4f "
