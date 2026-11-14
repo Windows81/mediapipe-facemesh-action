@@ -147,7 +147,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeCreate(
     opts.threads = 2;
     opts.min_detection_confidence = 0.5f;
     opts.min_tracking_confidence = 0.5f;
-    opts.min_face_presence_confidence = 0.5f;
+    opts.min_face_presence_confidence = 0.3f;
     opts.delegate = MP_DELEGATE_XNNPACK;
     opts.enable_roi_tracking = 1;
     opts.enable_iris = 1;
