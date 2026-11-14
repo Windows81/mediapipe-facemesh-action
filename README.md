@@ -6,9 +6,11 @@
 
 ---
 
-## Why this exists
+## The purpose of this fork, in one sentence
 
-Some apps need to know where a face is on a camera and precisely where the eyes are looking. Doing this from scratch is hard. Google publishes a model that does it for you, and cornpip builds a usable library around it. This repo builds that library for Android, natively, so a phone app can call it with low latency.
+A small Android app called `com.eyegaze` needs to track where a child's eyes are looking while they read a page on a Surface Duo — accurately enough to tell which *word* on the page they are fixating on, not just what region of the screen the face is roughly pointed at.
+
+Google's `face_landmarker.task` gives accurate face landmarks but **no iris position**, so the app had to guess eye position from facial geometry. This fork exists to make a proper iris-tracking library callable from that app.
 
 The library answers two questions, fast, from a camera frame:
 
@@ -16,6 +18,21 @@ The library answers two questions, fast, from a camera frame:
 2. **"Where is the pupil?"** 5 points per eye, with sub-pixel precision.
 
 Why you might care: building an eye-tracking reader, a fatigue detector, or anything that needs to know where on the screen your attention is.
+
+## What changed vs upstream
+
+Upstream (`cornpip/mediapipe_face_mesh`) is a Flutter plugin. This fork **does not** change any of the upstream C++, the TFLite models, or the JNI ABI — it repackages the native build so it can be consumed from a plain Android app.
+
+| Area | What changed | Why |
+|---|---|---|
+| Build driver | Added `.github/workflows/main.yml` (CMake + NDK) | Flutter tooling is unavailable in this project |
+| Release cadence | Release zips with ISO-8601 UTC tag from the commit | Every commit on `main` produces an artifact |
+| README | Written for command-line readers, not CV engineers | Anyone here can follow it |
+| Upstream source | **Unchanged** | The plugin and the C API are identical |
+| Upstream license notices | **Kept** | Apache-2.0 / BSD-3-Clause is honored |
+| Attribution | Credits Inkling 2 Small Free, model `opencode/inkling-2-small-free` | Agentic engineering, declared explicitly |
+
+If any of those rows ever starts to look wrong, the honest move is to revert the fork and use upstream directly — this fork is a convenience, not a replacement.
 
 ## A 60-second glossary
 
