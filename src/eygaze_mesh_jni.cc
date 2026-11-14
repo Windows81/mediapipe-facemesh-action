@@ -193,6 +193,10 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     image.vu_bytes_per_row = vuRowStride;
 
     // 1) Full-frame BlazeFace detection.
+    static int s_probe_counter = 0;
+    const bool probe = (++s_probe_counter % 15) == 0;
+    float detScore = -1.0f;
+
     MpFaceDetectorResult* detResult = mp_face_detector_process_nv21(
         bridge->det, &image, /*override_rect=*/ nullptr, rotationDegrees,
         /*mirror=*/ 0, /*roi_transform=*/ nullptr);
@@ -208,6 +212,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
         }
         if (best >= 0) {
             rect = detResult->detections[best].expanded_face_rect;
+            detScore = detResult->detections[best].score;
             haveRect = true;
         }
         mp_face_detector_release_result(detResult);
@@ -219,14 +224,37 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
 
     bool ok = false;
     float features[9];
+    float meshScore = -1.0f;
+    int meshLandmarks = 0;
     if (haveRect) {
         // 2) Attention landmark model on the detected face crop.
         MpFaceMeshResult* result = mp_face_mesh_process_nv21(
             bridge->mesh, &image, &rect, rotationDegrees, /*mirror=*/ 0);
-        ok = result && result->landmarks &&
-             result->landmarks_count >= FEM_MIN_LANDMARKS;
-        if (ok) ok = extractFeatures(result->landmarks, result->landmarks_count, features);
+        if (result) {
+            meshScore = result->score;
+            meshLandmarks = result->landmarks_count;
+            ok = result->landmarks &&
+                 result->landmarks_count >= FEM_MIN_LANDMARKS;
+        }
+        if (result && ok) {
+            ok = extractFeatures(result->landmarks, result->landmarks_count, features);
+        }
         mp_face_mesh_release_result(result);
+    }
+
+    // Probe: one line every ~15th frame (~2 Hz at 30 fps), coordinates and
+    // scores only - never pixel data.
+    if (probe) {
+        if (haveRect) {
+            __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "probe: det=%.3f rect=(x=%.3f,y=%.3f,w=%.3f,h=%.3f,rot=%.2f) "
+                "mesh=%.3f landmarks=%d feat_ok=%d",
+                detScore, rect.x_center, rect.y_center, rect.width, rect.height,
+                rect.rotation, meshScore, meshLandmarks, ok ? 1 : 0);
+        } else {
+            __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "probe: det=none (no detection this frame)");
+        }
     }
 
     env->ReleaseByteArrayElements(yBuf, y, JNI_ABORT);
