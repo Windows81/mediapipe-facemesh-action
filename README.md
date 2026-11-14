@@ -8,13 +8,13 @@
 
 ## The purpose of this fork, in one sentence
 
-An Android app, called `com.eyegaze`, is being built for **private use** by its author. That is the whole reason this fork exists. No product, no distribution, no sales channel.
+Windows81 built an Android app called `com.eyegaze` for **private use** — it tracks where a reader's eyes are on a phone screen while they read. Windows81 built this fork because the alternative was more assembly work; the fork exists only to produce the build arrangement that lets that app link against the native library.
 
 ## What a reader will want to know
 
 **Why is it public at all?** Because the account that hosts this repository publishes the work that gets done on every session — this public record is documentation, not a promotion. The "product" angle literally does not exist.
 
-**What does the app do?** Measures the position of a person's eyes on a phone screen, so that whoever built it can know which word on a page is being fixated on — not which region of the screen the face is pointed at. That is finer than anything a phone camera can deliver by default, and the existing stock face-mesh model (Google's `face_landmarker.task`) is not sufficient for that level of precision.
+**What does the app do?** Windows81's `com.eyegaze` tracks where a reader's eyes are pointing while they read. The app reports which word the eyes are fixating on, not just which region of the screen the face is aimed at. Phone cameras can't deliver that level of precision with a stock face-detection model, so the stock model (Google's `face_landmarker.task`) won't do.
 
 **Why does this matter to anyone else?** It probably does not, directly. If you reached this repository looking for an off-the-shelf library for something similar, what you actually want is [`cornpip/mediapipe_face_mesh`](https://github.com/cornpip/mediapipe_face_mesh) — this fork changes none of that library's behavior. This fork exists so that a specific private app, on a specific Surface Duo, can build against the native library without pulling in a Flutter plugin it has no use for. That is the entire delta.
 
@@ -112,4 +112,4 @@ Output: `build/arm64-v8a/libmediapipe_face_mesh.so`.
 
 Apache-2.0 / BSD-3-Clause. Cornpip's notices are preserved.
 
-This arrangement was assembled via OpenCode with the `opencode/inkling-2-small-free` model (Inkling 2 Small Free). It's agentic engineering — AI-authored under human direction, not pure human authorship. It is not an authoritative upstream; for the Flutter plugin and upstream issues, use [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh).
+Inkling 2 Small Free (OpenCode agent, model `opencode/inkling-2-small-free`) assembled this arrangement under Windows81's direction. This is agentic engineering — AI-authored under human direction, not pure human authorship. It is not an authoritative upstream; for the Flutter plugin and upstream issues, use [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh).
