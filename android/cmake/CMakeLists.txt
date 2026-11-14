@@ -36,6 +36,10 @@ target_include_directories(eygaze_mesh_jni15 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 target_link_libraries(eygaze_mesh_jni15 PRIVATE mediapipe_face_mesh log)
+target_include_directories(eygaze_mesh_jni PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+target_link_libraries(eygaze_mesh_jni PRIVATE mediapipe_face_mesh log)
 
 set_target_properties(mediapipe_face_mesh PROPERTIES
   PUBLIC_HEADER "../../src/mediapipe_face.h"
