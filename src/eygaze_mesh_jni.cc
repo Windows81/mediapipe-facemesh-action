@@ -20,11 +20,19 @@
 
 namespace {
 
-// Two artifacts are built from this one source. The default libeygaze_mesh_jni.so
+// One source, distinct builds per artifact. The default libeygaze_mesh_jni.so
 // keeps the original 9-float feature vector (ax ay bx by nx ny izm izd zNose), a
 // drop-in for every existing caller. libeygaze_mesh_jni15.so emits the extended
 // 15-float vector (adds eye aspect ratios, eye/io widths, iris radii), built for
 // the Surface Duo pipeline, where the 9/6/7-float build under-fit the gaze map.
+// libeygaze_mesh_jni15_mir.so is the 15-float vector with the captured image
+// mirrored horizontally (mirror_horizontal=1), for rigs where the sensor
+// orientation needs an explicit flip.
+#if defined(EYGAZE_MIRROR)
+static constexpr uint8_t kMirror = 1;
+#else
+static constexpr uint8_t kMirror = 0;
+#endif
 #if defined(EYGAZE_FEATURES_15)
 #  define FEATURE_COUNT 15
 #else
@@ -236,7 +244,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
 
     MpFaceDetectorResult* detResult = mp_face_detector_process_nv21(
         bridge->det, &image, /*override_rect=*/ nullptr, rotationDegrees,
-        /*mirror=*/ 1, /*roi_transform=*/ nullptr);
+        /*mirror=*/ kMirror, /*roi_transform=*/ nullptr);
     MpNormalizedRect rect{};
     bool haveRect = false;
     if (detResult) {
@@ -266,7 +274,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     if (haveRect) {
         // 2) Attention landmark model on the detected face crop.
         MpFaceMeshResult* result = mp_face_mesh_process_nv21(
-            bridge->mesh, &image, &rect, rotationDegrees, /*mirror=*/ 1);
+            bridge->mesh, &image, &rect, rotationDegrees, kMirror);
         if (result) {
             meshScore = result->score;
             meshLandmarks = result->landmarks_count;

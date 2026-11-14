@@ -32,10 +32,24 @@ target_compile_definitions(eygaze_mesh_jni15 PRIVATE EYGAZE_FEATURES_15)
 set_target_properties(eygaze_mesh_jni15 PROPERTIES
   OUTPUT_NAME "eygaze_mesh_jni15"
 )
+
+# 15-float vector with the captured image mirrored horizontally - additive,
+# never the default. Same source; the only difference is EYGAZE_MIRROR.
+add_library(eygaze_mesh_jni15_mir SHARED
+  "../../src/eygaze_mesh_jni.cc"
+)
+target_compile_definitions(eygaze_mesh_jni15_mir PRIVATE EYGAZE_FEATURES_15 EYGAZE_MIRROR)
+set_target_properties(eygaze_mesh_jni15_mir PROPERTIES
+  OUTPUT_NAME "eygaze_mesh_jni15_mir"
+)
 target_include_directories(eygaze_mesh_jni15 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
+target_include_directories(eygaze_mesh_jni15_mir PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
 target_link_libraries(eygaze_mesh_jni15 PRIVATE mediapipe_face_mesh log)
+target_link_libraries(eygaze_mesh_jni15_mir PRIVATE mediapipe_face_mesh log)
 target_include_directories(eygaze_mesh_jni PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
@@ -62,6 +76,7 @@ if (ANDROID)
   target_link_options(mediapipe_face_mesh PRIVATE "-Wl,-z,max-page-size=16384")
   target_link_options(eygaze_mesh_jni PRIVATE "-Wl,-z,max-page-size=16384")
   target_link_options(eygaze_mesh_jni15 PRIVATE "-Wl,-z,max-page-size=16384")
+  target_link_options(eygaze_mesh_jni15_mir PRIVATE "-Wl,-z,max-page-size=16384")
   # The bundled TensorFlow Lite runtime. Its SONAME must match the file name.
   # The symbols are versioned, and the Android loader resolves versioned
   # symbols by SONAME.
