@@ -4,13 +4,12 @@
 
 Three files, one goal: fast eye-region tracking in a plain Android app.
 
-Five files, including three JNI builds of the same source.
+Four files, two of which are JNI builds of the same source.
 
 - `libmediapipe_face_mesh.so` — the library that finds faces and computes landmarks (468 + 5 iris per eye).
 - `libmpfm_tensorflowlite_c.so` — the TFLite runtime that actually runs the model.
 - `libeygaze_mesh_jni.so` — default JNI bridge: the original **9-float** feature vector (ax ay bx by nx ny izm izd zNose). Drop-in for any existing caller.
 - `libeygaze_mesh_jni15.so` — same source, extended **15-float** vector (the 9, plus eye aspect ratios, eye/inter-ocular widths, iris radii). Built specifically for the Surface Duo pipeline, where the tracking quality of the 9-float build was not adequate. The indices of the first 9 are identical between the two artifacts.
-- `libeygaze_mesh_jni15_mir.so` — additive mirror variant of the 15-float bridge: same code path, same vector, same feature semantics, but the captured frame is mirrored horizontally before detection and landmark passes (`mirror_horizontal=1`). For rigs whose camera hands in a left-right swapped image to the model. Not the default; never silently activated.
 
 ## How do I use this?
 
