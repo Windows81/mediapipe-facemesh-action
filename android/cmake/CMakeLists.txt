@@ -16,6 +16,17 @@ add_library(mediapipe_face_mesh SHARED
   "../../src/mediapipe_tflite_interpreter.cc"
 )
 
+add_library(eygaze_mesh_jni SHARED
+  "../../src/eygaze_mesh_jni.cc"
+)
+set_target_properties(eygaze_mesh_jni PROPERTIES
+  OUTPUT_NAME "eygaze_mesh_jni"
+)
+target_include_directories(eygaze_mesh_jni PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+target_link_libraries(eygaze_mesh_jni PRIVATE mediapipe_face_mesh log)
+
 set_target_properties(mediapipe_face_mesh PROPERTIES
   PUBLIC_HEADER "../../src/mediapipe_face.h"
   OUTPUT_NAME "mediapipe_face_mesh"
@@ -35,6 +46,7 @@ target_include_directories(mediapipe_face_mesh PRIVATE
 if (ANDROID)
   # Support Android 15 16k page size
   target_link_options(mediapipe_face_mesh PRIVATE "-Wl,-z,max-page-size=16384")
+  target_link_options(eygaze_mesh_jni PRIVATE "-Wl,-z,max-page-size=16384")
   # The bundled TensorFlow Lite runtime. Its SONAME must match the file name.
   # The symbols are versioned, and the Android loader resolves versioned
   # symbols by SONAME.
