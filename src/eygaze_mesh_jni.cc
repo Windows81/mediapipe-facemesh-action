@@ -285,9 +285,12 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
         if (haveRect) {
             __android_log_print(ANDROID_LOG_INFO, kLogTag,
                 "probe: det=%.3f rect=(x=%.3f,y=%.3f,w=%.3f,h=%.3f,rot=%.2f) "
-                "mesh=%.3f landmarks=%d feat_ok=%d",
+                "mesh=%.3f landmarks=%d feat_ok=%d v=%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f",
                 detScore, rect.x_center, rect.y_center, rect.width, rect.height,
-                rect.rotation, meshScore, meshLandmarks, ok ? 1 : 0);
+                rect.rotation, meshScore, meshLandmarks, ok ? 1 : 0,
+                features[0], features[1], features[2], features[3], features[4],
+                features[5], features[6], features[7], features[8], features[9],
+                features[10], features[11], features[12], features[13], features[14]);
         } else {
             __android_log_print(ANDROID_LOG_INFO, kLogTag,
                 "probe: det=none (no detection this frame)");
