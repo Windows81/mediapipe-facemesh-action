@@ -276,6 +276,18 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
         if (result && ok) {
             ok = extractFeatures(result->landmarks, result->landmarks_count, features);
         }
+        // Same 2 Hz probe: raw iris landmark coordinates (clamped already), for the
+        // edges diagnostic. 468-472 = iris group A; 473-477 = iris group B.
+        if (result && probe) {
+            const MpLandmark* lm = result->landmarks;
+            __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "iris: 468=%.4f,%.4f 469=%.4f,%.4f 470=%.4f,%.4f 471=%.4f,%.4f 472=%.4f,%.4f "
+                "| 473=%.4f,%.4f 474=%.4f,%.4f 475=%.4f,%.4f 476=%.4f,%.4f 477=%.4f,%.4f",
+                lm[468].x, lm[468].y, lm[469].x, lm[469].y, lm[470].x, lm[470].y,
+                lm[471].x, lm[471].y, lm[472].x, lm[472].y,
+                lm[473].x, lm[473].y, lm[474].x, lm[474].y, lm[475].x, lm[475].y,
+                lm[476].x, lm[476].y, lm[477].x, lm[477].y);
+        }
         mp_face_mesh_release_result(result);
     }
 
