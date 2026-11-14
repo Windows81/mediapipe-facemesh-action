@@ -1,7 +1,8 @@
-name: build-and-release
+name: Build
 on:
   push:
-    branches: [main]
+    branches:
+      - "*"
   workflow_dispatch:
 
 permissions:
@@ -14,6 +15,20 @@ jobs:
       matrix:
         abi: [arm64-v8a, x86_64]
     steps:
+      - name: Generate Release Data
+        shell: bash
+        run: |
+          export LC_ALL=en_US.utf8
+          GIT_COMMIT_ID=$(echo "${{ github.sha }}" | cut -c 1-7)
+          if [ -n "${{ github.event.head_commit.timestamp }}" ]; then
+            RAW="${{ github.event.head_commit.timestamp }}"
+          else
+            RAW="${{ github.event.repository.updated_at }}"
+          fi
+          UPDATE_TIME=$(echo "$RAW" | sed 's/[:-]//g')
+          echo "tag_name=v${UPDATE_TIME}" >> $GITHUB_ENV
+          echo "release_name=${UPDATE_TIME} (${GIT_COMMIT_ID})" >> $GITHUB_ENV
+
       - uses: actions/checkout@v4
 
       - name: Install NDK r26d
@@ -51,27 +66,33 @@ jobs:
           path: artifacts
 
       - name: Package zip
+        shell: bash
         run: |
           cd artifacts
           zip -r ../mediapipe-facemesh-android.zip .
 
-      - name: Build release identity (ISO 8601 UTC)
-        id: rel
+      - name: Generate Release Data
         shell: bash
         run: |
-          TAG="v$(date -u +%Y%m%dT%H%M%SZ)"
-          NAME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          export LC_ALL=en_US.utf8
+          GIT_COMMIT_ID=$(echo "${{ github.sha }}" | cut -c 1-7)
+          if [ -n "${{ github.event.head_commit.timestamp }}" ]; then
+            RAW="${{ github.event.head_commit.timestamp }}"
+          else
+            RAW="${{ github.event.repository.updated_at }}"
+          fi
+          UPDATE_TIME=$(echo "$RAW" | sed 's/[:-]//g')
+          echo "tag_name=v${UPDATE_TIME}" >> $GITHUB_ENV
+          echo "release_name=${UPDATE_TIME} (${GIT_COMMIT_ID})" >> $GITHUB_ENV
 
-      - name: Release (softprops/action-gh-release@v1, ISO 8601)
-        uses: softprops/action-gh-release@v1
+      - name: Release with Notes
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          name: ${{ steps.rel.outputs.name }}
           files: mediapipe-facemesh-android.zip
+          name: ${{ env.release_name }}
+          tag_name: ${{ env.tag_name }}
           generate_release_notes: true
-          prerelease: false
+          overwrite_files: false
           body: |
             Forked arrangement of cornpip/mediapipe_face_mesh for Android arm64-v8a + x86_64.
             Assembled by Inkling 2 Small Free to produce Android native libraries via GitHub Actions.
