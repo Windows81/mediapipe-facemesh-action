@@ -260,7 +260,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     }
 
     bool ok = false;
-    float features[15];
+    float features[15] = { NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN };
     float meshScore = -1.0f;
     int meshLandmarks = 0;
     if (haveRect) {
