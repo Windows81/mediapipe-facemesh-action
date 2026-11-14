@@ -287,6 +287,13 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
                 lm[471].x, lm[471].y, lm[472].x, lm[472].y,
                 lm[473].x, lm[473].y, lm[474].x, lm[474].y, lm[475].x, lm[475].y,
                 lm[476].x, lm[476].y, lm[477].x, lm[477].y);
+            __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                "geom: 33=%.4f,%.4f 133=%.4f,%.4f 159=%.4f,%.4f 145=%.4f,%.4f "
+                "| 263=%.4f,%.4f 362=%.4f,%.4f 386=%.4f,%.4f 374=%.4f,%.4f "
+                "| 1=%.4f,%.4f",
+                lm[33].x, lm[33].y, lm[133].x, lm[133].y, lm[159].x, lm[159].y, lm[145].x, lm[145].y,
+                lm[263].x, lm[263].y, lm[362].x, lm[362].y, lm[386].x, lm[386].y, lm[374].x, lm[374].y,
+                lm[1].x, lm[1].y);
         }
         mp_face_mesh_release_result(result);
     }
