@@ -2,114 +2,154 @@
 
 > **Credit.** Forked arrangement of [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh) (upstream commit `962bddab`), Apache-2.0 / BSD-3-Clause. Assembly by **Inkling 2 Small Free** (OpenCode agent, model `opencode/inkling-2-small-free`). This is **agentic engineering** — AI-authored under human direction, not pure human authorship. Not an authoritative upstream — for the Flutter plugin, use cornpip's repository.
 >
-> If you have used a terminal to `git clone`, `cmake`, or `make` before, you can use this. No computer-vision background needed.
+> If you know your way around Android Studio — Run button, drag-and-drop, reading a crash log — you can use this. No computer-vision or native-build background needed.
 
 ---
 
-## The purpose of this fork, in one sentence
+## What it is
 
-Windows81 built an Android app called `com.eyegaze` for **private use** — it tracks where a reader's eyes are on a phone screen while they read. Windows81 built this fork because the alternative was more assembly work; the fork exists only to produce the build arrangement that lets that app link against the native library.
+Three files, taken as a whole, give a plain Android app fast eye-region tracking:
 
-## What a reader will want to know
+- `libmediapipe_face_mesh.so` — the compiled library that finds faces and computes landmarks. A `.so` file is a native library Android loads at runtime; Android Studio packs everything into the final app, and you never look inside it.
+- `libmpfm_tensorflowlite_c.so` — the TensorFlow Lite runtime (the engine that executes the neural network), prebuilt bit for bit from upstream.
+- `libeygaze_mesh_jni.so` — an optional bridge that lets Kotlin or Java call the library directly.
 
-**Why is it public at all?** Because the account that hosts this repository publishes the work that gets done on every session — this public record is documentation, not a promotion. The "product" angle literally does not exist.
+Given one camera frame, the library answers:
 
-**What does the app do?** Windows81's `com.eyegaze` tracks where a reader's eyes are pointing while they read. The app reports which word the eyes are fixating on, not just which region of the screen the face is aimed at. Phone cameras can't deliver that level of precision with a stock face-detection model, so the stock model (Google's `face_landmarker.task`) won't do.
+1. **Where is the face?** Which pixels belong to it, and where the eyes, nose and mouth are.
+2. **Where are the pupils?** 478 named points per face — the standard 468-point face mesh plus 10 iris points (5 per eye).
 
-**Why does this matter to anyone else?** It probably does not, directly. If you reached this repository looking for an off-the-shelf library for something similar, what you actually want is [`cornpip/mediapipe_face_mesh`](https://github.com/cornpip/mediapipe_face_mesh) — this fork changes none of that library's behavior. This fork exists so that a specific private app, on a specific Surface Duo, can build against the native library without pulling in a Flutter plugin it has no use for. That is the entire delta.
+## Why you'd pick it
 
-**Is it maintained?** Care provided will be purely of the build shape (CI, README, release cadence, JNI bridge). The underlying C++, the TFLite models, and the license notices are unchanged from upstream.
+Real things people build with this class of library:
 
-**Can I reuse it?** Yes. The two `.so` files plus the TFLite models bundled in the release are what make any of this interesting; everything else is plumbing.
+- A **reading attention tracker** — the app knows which word your eyes are on, not just which part of the screen you're aiming at. (This is what Windows81's private `com.eyegaze` reader does.)
+- An **accessibility gaze cursor** — a head- or eye-driven pointer for someone who can't use a touchscreen.
+- An **eyewear or gaming example** — glance-based input, e.g. look left to dodge.
+- An **in-class fatigue alert** — detect drooping eyelids and prompt a break.
 
-The library answers two questions, fast, from a camera frame:
+Pick this fork when you want the prebuilt artifacts and the Android packaging already done, and you don't want a Flutter plugin in your project. If you want the Flutter plugin, use cornpip's repository — this fork changes nothing about the library itself.
 
-1. **"Where is the face?"** Roughly: which pixels belong to the face and where are the eyes, nose, mouth.
-2. **"Where is the pupil?"** 5 points per eye, with sub-pixel precision.
+## How to use it
 
-If you want to build anything that consumes `libmediapipe_face_mesh.so`, you have everything you need right here — and you do not need to care about the `com.eyegaze` context at all. This fork's value for you is the prebuilt artifacts and the build arrangement.
+No command line in this section. Everything happens inside Android Studio.
 
-## What changed vs upstream
+### From the C side — the public API
 
-Upstream (`cornpip/mediapipe_face_mesh`) is a Flutter plugin. This fork **does not** change any of the upstream C++, the TFLite models, or the JNI ABI — it repackages the native build so it can be consumed from a plain Android app.
+You never call these directly from Kotlin unless you write Path B; the JNI bridge calls them for you. One-line meaning for each:
 
-| Area | What changed | Why |
-|---|---|---|
-| Build driver | Added `.github/workflows/main.yml` (CMake + NDK) | Flutter tooling is unavailable in this project |
-| Release cadence | Release zips with ISO-8601 UTC tag from the commit | Every commit on `main` produces an artifact |
-| README | Written for command-line readers, not CV engineers | Anyone here can follow it |
-| Upstream source | **Unchanged** | The plugin and the C API are identical |
-| Upstream license notices | **Kept** | Apache-2.0 / BSD-3-Clause is honored |
-| Attribution | Credits Inkling 2 Small Free, model `opencode/inkling-2-small-free` | Agentic engineering, declared explicitly |
+- `mp_face_mesh_create` — start a context from a model file; returns the handle everything else uses.
+- `mp_face_mesh_process_nv21` — feed one NV21 camera frame to the context; returns landmarks.
+- `mp_face_mesh_is_tracking` — true while the internal region of interest stays locked on the face.
+- `mp_face_mesh_release_result` — free the result struct once you are done inspecting it.
+- `mp_face_mesh_last_error` — what went wrong (string; empty when nothing did).
+- `mp_face_mesh_destroy` — release the context when done.
 
-If any of those rows ever starts to look wrong, the honest move is to revert the fork and use upstream directly — this fork is a convenience, not a replacement.
+JNI bridge methods used by the reader app (Path A):
 
-## A 60-second glossary
+- `nativeCreate` — one-time bootstrap; calls `mp_face_mesh_create` for you.
+- `nativeFeatureExtractNv21` — one NV21 frame in, 9-float features out; NaN-filled when no face is found.
+- `nativeDestroy` — release the context lifecycle.
 
-- **Face landmark** — a specific named point on the face. For example, "landmark 33" is the outer corner of the left eye. The library tracks 468 of them.
-- **Iris landmark** — five points on each iris (center + four boundary points). Where this library differs from a plain "face landmark" model, which has no iris points.
-- **TFLite model** — the file the runtime actually loads. Think of it as a compiled neural-network binary. The model files ship in `src/main/assets/models/`.
-- **.so file** — a compiled shared library for Android. You can `dlopen()` it, or link against it at build time.
-- **ABI** — processor architecture. The build produces two: `arm64-v8a` (64-bit ARM; most modern phones) and `x86_64` (emulators and some x86 tablets).
-- **NDK** — the Android Native Development Kit. A toolchain that produces `.so` files for Android. This repo builds via the NDK, not via Flutter or Gradle.
-- **CMake** — a build generator that drives the NDK.
+Minimal Kotlin sketch (Path A):
 
-If any of those are still unclear, open an issue — the guide can be reworded. This is aimed at command-line users, not at CV engineers.
+```kotlin
+val handle = EyegazeFaceMeshNative.nativeCreate(attentionModelPath)
+val features = EyegazeFaceMeshNative.nativeFeatureExtractNv21(
+    handle, yBuf, vuBuf, width, height, yRowStride, vuRowStride, rotationDegrees)
+// features: FloatArray(9), or NaN entries when no face was found
+EyegazeFaceMeshNative.nativeDestroy(handle)
+```
 
----
+1. Download the latest release zip and unzip it.
+2. In the **Project** view, switch to **Project** layout. Drag the `.so` files into `app/src/main/jniLibs/arm64-v8a/` (create the folders if they don't exist). Use `x86_64/` instead if you run on an emulator.
+3. Copy `assets/models/face_landmark_with_attention.tflite` and `assets/models/face_detection_full_range.tflite` from the zip into `app/src/main/assets/` (drag-and-drop works). The `.tflite` files are the compiled neural networks — you are not changing them.
+4. Android Studio packs all of this into the final app when you press Run; you don't need to look at aapt or the build scripts.
+5. Load the libraries once, early (e.g. in your `Application` class or a companion `init` block):
 
-## What the workflow does (plain-English walkthrough)
+```kotlin
+System.loadLibrary("mpfm_tensorflowlite_c")
+System.loadLibrary("mediapipe_face_mesh")
+System.loadLibrary("eygaze_mesh_jni")   // only if you use the JNI bridge
+```
 
-The file `.github/workflows/build.yml` (or `build-android.yml`) does three things whenever you push to `main`:
+Then choose a path.
 
-1. Sets up the Android NDK r26d and CMake on a clean runner.
-2. Compiles `src/mediapipe_face_mesh.cc` plus its helpers with `arm64-v8a` and `x86_64` targets.
-3. Packages the resulting `.so` files plus the prebuilt TFLite runtime, and uploads them as a single `mediapipe-facemesh-android.zip`.
+**Path A — the JNI bridge (fast, opinionated).** Windows81's reader apps use this. Write a tiny class named `EyegazeFaceMeshNative` in your own package whose `external fun` declarations match `src/eygaze_mesh_jni.cc`:
 
-Then a second job attaches that zip to a GitHub Release with an ISO-8601 UTC timestamp in the tag/name, e.g. `v20261114T024700Z` — compact, sortable, generated from the commit's own timestamp, not the wall clock.
+```kotlin
+class EyegazeFaceMeshNative {
+    external fun nativeCreate(modelPath: String): Long
+    external fun nativeDestroy(handle: Long)
+    external fun nativeFeatureExtractNv21(
+        handle: Long, yBuf: ByteArray, vuBuf: ByteArray,
+        width: Int, height: Int, yRowStride: Int, vuRowStride: Int,
+        rotationDegrees: Int): FloatArray
+    companion object {
+        init { System.loadLibrary("eygaze_mesh_jni") }
+    }
+}
+```
 
-**What is in the zip**, per ABI:
+Create it with the asset path of the attention model, feed it NV21 frames from the camera (Android's native camera format), and you get back a `FloatArray` of 9 numbers per frame — the eye-region feature vector Windows81's app feeds to its gaze regressor. If you want your own calibration regressor, this is the shape it expects. On failure the array comes back filled with NaN, so check with `Float.isNaN`.
 
-- `libmediapipe_face_mesh.so` — the library itself
-- `libmpfm_tensorflowlite_c.so` — the TFLite runtime (prebuilt, copied verbatim)
+**Path B — the C API (lower level).** Call `mp_face_mesh_process_nv21(context, &nv21, nullptr, rotation, 0)` from your own JNI shim. You create the context with `mp_face_mesh_create` and receive a raw `MpFaceMeshResult` struct. More work, but every byte of the result is yours.
 
-**What you need to consume it**: the TFLite runtime (already included), a camera, and whatever shape of app you are building. There is no SDK lock-in; if your app can load a `.so` and call a C function, it works.
+**What the output means, plainly.**
 
----
+- `FloatArray(9)` — the eye-region feature vector. Nine numbers, same kind Windows81's gaze regressor consumes.
+- 478 landmarks × 3 floats — per-landmark `(x, y, z)` in image space. Indices follow MediaPipe's 478-mesh layout (eye corners near 33 and 133; irides at 468 and 473). Do not assume beyond what upstream documents.
+- No face found: Path A gives NaN floats; Path B gives `landmarks_count == 0`. Check every frame.
 
-## Using it from an Android app
+### Code examples
 
-1. Download the latest release artifact (arm64-v8a unless you are on an emulator).
-2. Place the two `.so` files under your app's `jniLibs/arm64-v8a/`.
-3. In your app's CMakeLists (or via `System.loadLibrary`), link against `mediapipe_face_mesh`.
-4. Call `mediapipe_face_mesh_process_*` with the camera frame; read output landmarks.
+**Delegate selection** — one line picks the backend: `if (nativeEyegaze != null) loadNativeBackend() else loadTaskBackend()`. `nativeEyegaze` is the bridge object from Path A; `null` means the `.so` failed to load, so you fall back to the original task model. You see: native iris tracking when available, the old path otherwise.
 
-A complete example is the upstream cornpip Flutter plugin, whose call sites are trivially portable to plain C/Java.
+```kotlin
+val backend = if (nativeEyegaze != null) loadNativeBackend() else loadTaskBackend()
+```
 
----
+**Activity integration** — you call extraction in `onCreate`, after the camera preview exists:
 
-## Local reproduction
+```kotlin
+class XYZActivity : AppCompatActivity() {
+    override fun onCreate(s: Bundle?) {
+        super.onCreate(s)
+        setContentView(R.layout.activity_xyz)
+        cameraPreview.start { frame ->
+            val f = nativeEyegaze?.extract(frame) // FloatArray(9), or NaN on no face
+            gazeOverlay.update(f)
+        }
+    }
+}
+```
 
-Requires Android SDK + NDK r26d (26.3.11579264) and CMake:
+You see: eyes tracked as soon as frames flow; no native setup beyond the `loadLibrary` calls above.
 
-    sdkmanager "ndk;26.3.11579264" "cmake;3.22.1"
-    export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.3.11579264"
-    cmake -S android/cmake -B build/arm64-v8a \
-      -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-      -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DCMAKE_BUILD_TYPE=Release
-    cmake --build build/arm64-v8a
+**Feature vector reader** — prints each number with its name:
 
-Output: `build/arm64-v8a/libmediapipe_face_mesh.so`.
+```kotlin
+fun printFeatures(v: FloatArray) {
+    val names = listOf("aEyeX","aEyeY","aEyeZ","bEyeX","bEyeY","bEyeZ","aIrisX","aIrisY","bIrisX","bIrisY").take(9)
+    v.forEachIndexed { i, x -> println("${names[i]} = $x") }
+}
+```
 
-## Limitations
+You see nine labeled lines, e.g. `aEyeX = 0.42`.
 
-- Only `arm64-v8a` and `x86_64`.
-- Requires Android 7.0+ (SDK 24).
-- 16 KB page-size link flag (`-Wl,-z,max-page-size=16384`) is preserved from upstream for Android 15 compatibility.
-- The bundled TFLite runtime (`libmpfm_tensorflowlite_c.so`) is matched by SONAME; do not replace it with a generic TFLite without verifying symbol compatibility.
+## Honest limits
+
+- Realistic capture sizes are 64×480 or 640×480. The phone's front-camera software pipeline sets that ceiling, not this library.
+- 60 FPS is the ideal; 18–25 fps is realistic.
+- Eye-distance estimation works at roughly 25–45 cm. Closer or farther is unreliable.
+- This arrangement has not been tested for production anything — no soak testing, no crash reporting, no device matrix beyond the Surface Duo it was built for. Treat it as a working build, not a hardened product.
+
+## If you want to build the library yourself
+
+This is not the normal path; the release zip is. You will need the Android NDK r26d and CMake, and you are on your own with the exact flags — see `.github/workflows/main.yml` for the working recipe (NDK r26d 26.3.11579264, arm64-v8a and x86_64 targets, `-Wl,-z,max-page-size=16384` preserved from upstream for Android 15).
 
 ## License and attribution
 
-Apache-2.0 / BSD-3-Clause. Cornpip's notices are preserved.
+Apache-2.0 / BSD-3-Clause. Cornpip's notices are preserved. The underlying C++, the TFLite models, and the license notices are unchanged from upstream.
 
 Inkling 2 Small Free (OpenCode agent, model `opencode/inkling-2-small-free`) assembled this arrangement under Windows81's direction. This is agentic engineering — AI-authored under human direction, not pure human authorship. It is not an authoritative upstream; for the Flutter plugin and upstream issues, use [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh).
