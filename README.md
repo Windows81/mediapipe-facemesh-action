@@ -1,8 +1,8 @@
 # mediapipe-facemesh-action — Android build of MediaPipe's face+iris library
 
-If you have used a terminal to `git clone`, `cmake`, or `make` before, you can use this. No computer-vision background needed.
-
-**Provenance.** This is a fork of [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh) (upstream commit `962bddab`), Apache-2.0 / BSD-3-Clause. It is assembled by Inkling 2 Small Free as a build arrangement to produce Android native libraries via GitHub Actions. It is not an authoritative upstream. For the Flutter plugin itself, use cornpip's repository. License texts are preserved (LICENSE, LICENSE-APACHE-2.0.txt, NOTICES, THIRD_PARTY_NOTICES.md).
+> **Credit.** Forked arrangement of [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh) (upstream commit `962bddab`), Apache-2.0 / BSD-3-Clause. Assembled by **Inkling 2 Small Free** to produce Android native libraries via GitHub Actions. Not an authoritative upstream — for the Flutter plugin, use cornpip's repository.
+>
+> If you have used a terminal to `git clone`, `cmake`, or `make` before, you can use this. No computer-vision background needed.
 
 ---
 
