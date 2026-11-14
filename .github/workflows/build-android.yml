@@ -95,7 +95,8 @@ jobs:
           overwrite_files: false
           body: |
             Forked arrangement of cornpip/mediapipe_face_mesh for Android arm64-v8a + x86_64.
-            Assembled by Inkling 2 Small Free to produce Android native libraries via GitHub Actions.
+            Assembled by Inkling 2 Small Free (OpenCode agent, model opencode/inkling-2-small-free).
+            Agentic engineering — AI-authored under human direction.
             Not an authoritative upstream: for the Flutter plugin, use cornpip's repository.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

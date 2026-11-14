@@ -1,6 +1,6 @@
 # mediapipe-facemesh-action — Android build of MediaPipe's face+iris library
 
-> **Credit.** Forked arrangement of [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh) (upstream commit `962bddab`), Apache-2.0 / BSD-3-Clause. Assembled by **Inkling 2 Small Free** to produce Android native libraries via GitHub Actions. Not an authoritative upstream — for the Flutter plugin, use cornpip's repository.
+> **Credit.** Forked arrangement of [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh) (upstream commit `962bddab`), Apache-2.0 / BSD-3-Clause. Assembly by **Inkling 2 Small Free** (OpenCode agent, model `opencode/inkling-2-small-free`). This is **agentic engineering** — AI-authored under human direction, not pure human authorship. Not an authoritative upstream — for the Flutter plugin, use cornpip's repository.
 >
 > If you have used a terminal to `git clone`, `cmake`, or `make` before, you can use this. No computer-vision background needed.
 
@@ -83,6 +83,6 @@ Output: `build/arm64-v8a/libmediapipe_face_mesh.so`.
 
 ## License and attribution
 
-Apache-2.0 / BSD-3-Clause. Cornpip's notices are preserved in LICENSE, LICENSE-APACHE-2.0.txt, NOTICES, and THIRD_PARTY_NOTICES.md.
+Apache-2.0 / BSD-3-Clause. Cornpip's notices are preserved.
 
-This arrangement was assembled by Inkling 2 Small Free. It is not an authoritative upstream; for the Flutter plugin and upstream issues, use [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh).
+This arrangement was assembled via OpenCode with the `opencode/inkling-2-small-free` model (Inkling 2 Small Free). It's agentic engineering — AI-authored under human direction, not pure human authorship. It is not an authoritative upstream; for the Flutter plugin and upstream issues, use [cornpip/mediapipe_face_mesh](https://github.com/cornpip/mediapipe_face_mesh).
