@@ -48,7 +48,7 @@ Three files, one goal: fast eye-region tracking in a plain Android app.
 
 ## Working example (real, in-app)
 
-This is the class Windows81's `com.eyegaze` reader uses verbatim, trimmed only on import:
+This is the class `com.eyegaze` uses, assembled by Inkling 2 Small Free under Windows81's direction, trimmed only on import:
 
 ```kotlin
 final class EyegazeFaceMeshNative(Context ctx) : AutoCloseable {
@@ -136,7 +136,7 @@ val features = EyegazeFaceMeshNative.nativeFeatureExtractNv21(
 EyegazeFaceMeshNative.nativeDestroy(handle)
 ```
 
-`features` is 9 floats: the same feature vector used by Windows81's reader apps. Read them, feed them to your own regressor, done.
+`features` is 9 floats: the same feature vector `com.eyegaze` feeds to its gaze regressor, assembled by agentic engineering under Windows81's direction. Read them, feed them to your own regressor, done.
 
 ## Honest limits
 
