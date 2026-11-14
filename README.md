@@ -60,8 +60,10 @@ final class EyegazeFaceMeshNative(Context ctx) : AutoCloseable {
     private var handle: Long = 0L
 
     constructor(ctx: Context) : this(ctx) {
-        copyModelFromAssetsToFiles(ctx)
-        handle = nativeCreate(File(ctx.filesDir, MODEL_FILE).absolutePath)
+        copyModelFromAssetsToFiles(ctx)          // copies BOTH .tflite files
+        handle = nativeCreate(
+            File(ctx.filesDir, MODEL_FILE).absolutePath,
+            File(ctx.filesDir, DETECTOR_FILE).absolutePath)
         check(handle != 0L) { "nativeCreate failed — see 'nativeCreate' log (tag:eyegaze)" }
     }
 
@@ -79,7 +81,7 @@ final class EyegazeFaceMeshNative(Context ctx) : AutoCloseable {
         if (handle != 0L) { nativeDestroy(handle); handle = 0L }
     }
 
-    private external fun nativeCreate(modelPath: String): Long
+    private external fun nativeCreate(modelPath: String, detectorPath: String): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeFeatureExtractNv21(
         handle: Long, yBuffer: ByteBuffer, vuBuffer: ByteBuffer,
@@ -105,6 +107,16 @@ private fun onFrame(image: Image, now: Long) {
     }
 }
 ```
+
+## Why two models, every frame
+
+`face_landmark_with_attention.tflite` is the refinement stage of MediaPipe's face pipeline: it expects a crop around an already-detected face, not the full camera frame. Feed it the whole frame and the face flag inside the model never clears the presence threshold — every frame reads all-NaN. The bridge therefore runs a BlazeFace full-range pass (`face_detection_full_range.tflite`) on the full frame first, takes the highest-scoring detection, and feeds `expanded_face_rect` from that detection to the landmark model. Both models ship as assets; both are copied to `filesDir` on first launch before `nativeCreate`.
+
+Consequences worth knowing:
+
+- `nativeCreate` returns 0 if *either* model fails to initialise — the attention model without its detector would silently never find a face, so the bridge refuses to run half-wired.
+- The detector pass adds a few milliseconds per frame. If you don't need iris/eye features every frame, run detection on a timer and reuse the last rect while it is fresh.
+- The scene is inferred, never captured: nothing in this library writes frames to disk or to the network.
 
 ## Reading the native logs
 

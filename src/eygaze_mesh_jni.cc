@@ -1,7 +1,18 @@
 // JNI glue for com.eyegaze.EyegazeFaceMeshNative.
+//
+// The MediaPipe "face_landmark_with_attention" model is a refinement stage,
+// not a standalone detector: it expects a crop around a face, not the full
+// camera frame. Feed it the whole frame and its face flag never clears the
+// presence threshold, which is why every frame read all-NaN before this
+// rewrite. The fix is the same two-stage pipeline MediaPipe uses on device:
+// a BlazeFace full-range pass first (face_detection_full_range.tflite) and
+// the attention landmark model on the detected face rect.
+//
 // Builds the 9-feature eye vector the app regressor uses, from the
 // 478-point landmarks this library emits.
 #include <jni.h>
+#include <android/log.h>
+#include <cstdio>
 #include <cstring>
 #include <cmath>
 #include <cstdint>
@@ -9,8 +20,15 @@
 
 namespace {
 
-MpFaceMeshContext* asCtx(jlong h) {
-    return reinterpret_cast<MpFaceMeshContext*>(h);
+constexpr char kLogTag[] = "eyegaze";
+
+struct EyegazeBridge {
+    MpFaceMeshContext* mesh;
+    MpFaceDetectorContext* det;
+};
+
+EyegazeBridge* asBridge(jlong h) {
+    return reinterpret_cast<EyegazeBridge*>(h);
 }
 
 // indices, must match EyeFeature.java
@@ -25,12 +43,11 @@ enum {
 float eyeEar(const MpLandmark* lm, int innerI, int outerI, int topI, int botI) {
     const auto& i = lm[innerI]; const auto& o = lm[outerI];
     const auto& t = lm[topI];   const auto& b = lm[botI];
-    float cx = (i.x + o.x) / 2.f, cy = (t.y + b.y) / 2.f;
+    float cy = (t.y + b.y) / 2.f;
+    (void) cy;
     float w = std::fabs(o.x - i.x), h = std::fabs(b.y - t.y);
     if (w < 1e-6f || h < 1e-6f) return -1.f;
-    float* earOut = nullptr; (void) earOut;
     float ear = h / w;
-    (void) cx; (void) cy;
     return ear;
 }
 
@@ -86,8 +103,10 @@ extern "C" {
 
 JNIEXPORT jlong JNICALL
 Java_com_eyegaze_EyegazeFaceMeshNative_nativeCreate(
-    JNIEnv* env, jclass, jstring jModelPath) {
+    JNIEnv* env, jclass, jstring jModelPath, jstring jDetectorPath) {
     const char* modelPath = env->GetStringUTFChars(jModelPath, nullptr);
+    const char* detectorPath = env->GetStringUTFChars(jDetectorPath, nullptr);
+
     MpFaceMeshCreateOptions opts{};
     opts.threads = 2;
     opts.min_detection_confidence = 0.5f;
@@ -98,14 +117,47 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeCreate(
     opts.enable_iris = 1;
     opts.enable_attention_mesh = 1;        // face_landmark_with_attention.tflite
     opts.disable_delegate_fallback = 0;
-    MpFaceMeshContext* ctx = mp_face_mesh_create(modelPath, &opts);
+    MpFaceMeshContext* mesh = mp_face_mesh_create(modelPath, &opts);
+    if (!mesh) {
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag,
+                            "mesh model init failed: %s", mp_face_mesh_last_global_error());
+        env->ReleaseStringUTFChars(jModelPath, modelPath);
+        env->ReleaseStringUTFChars(jDetectorPath, detectorPath);
+        return 0;
+    }
+
+    MpFaceDetectorCreateOptions dopts{};
+    dopts.threads = 2;
+    dopts.min_detection_confidence = 0.5f;
+    dopts.min_suppression_threshold = 0.3f;
+    dopts.max_results = 1;
+    dopts.delegate = MP_DELEGATE_XNNPACK;
+    dopts.disable_delegate_fallback = 0;
+    MpFaceDetectorContext* det = mp_face_detector_create(detectorPath, &dopts);
+    if (!det) {
+        // Without a detector there is no face rect to crop, and the attention
+        // model would always read below presence confidence. Fail loudly so
+        // the caller can log it, rather than ship a silently-broken bridge.
+        __android_log_print(ANDROID_LOG_ERROR, kLogTag,
+                            "detector model init failed: %s",
+                            mp_face_detector_last_global_error());
+        mp_face_mesh_destroy(mesh);
+        env->ReleaseStringUTFChars(jModelPath, modelPath);
+        env->ReleaseStringUTFChars(jDetectorPath, detectorPath);
+        return 0;
+    }
     env->ReleaseStringUTFChars(jModelPath, modelPath);
-    return reinterpret_cast<jlong>(ctx);
+    env->ReleaseStringUTFChars(jDetectorPath, detectorPath);
+    return reinterpret_cast<jlong>(new EyegazeBridge{mesh, det});
 }
 
 JNIEXPORT void JNICALL
 Java_com_eyegaze_EyegazeFaceMeshNative_nativeDestroy(JNIEnv*, jclass, jlong handle) {
-    if (handle) mp_face_mesh_destroy(asCtx(handle));
+    EyegazeBridge* b = asBridge(handle);
+    if (!b) return;
+    if (b->mesh) mp_face_mesh_destroy(b->mesh);
+    if (b->det) mp_face_detector_destroy(b->det);
+    delete b;
 }
 
 // Returns a 9-float array, or an array of all NaNs when no valid mesh/face is found.
@@ -119,7 +171,8 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     jfloatArray out = env->NewFloatArray(9);
     jfloat dummy[9] = { NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN };
 
-    if (handle == 0) {
+    EyegazeBridge* bridge = asBridge(handle);
+    if (!bridge) {
         env->SetFloatArrayRegion(out, 0, 9, dummy);
         return out;
     }
@@ -139,13 +192,43 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     image.y_bytes_per_row = yRowStride;
     image.vu_bytes_per_row = vuRowStride;
 
-    MpFaceMeshResult* result = mp_face_mesh_process_nv21(
-        asCtx(handle), &image, nullptr /*override_rect*/, rotationDegrees, /*mirror=*/ 0);
+    // 1) Full-frame BlazeFace detection.
+    MpFaceDetectorResult* detResult = mp_face_detector_process_nv21(
+        bridge->det, &image, /*override_rect=*/ nullptr, rotationDegrees,
+        /*mirror=*/ 0, /*roi_transform=*/ nullptr);
+    MpNormalizedRect rect{};
+    bool haveRect = false;
+    if (detResult) {
+        int best = -1;
+        for (int32_t i = 0; i < detResult->detections_count; ++i) {
+            if (best < 0 ||
+                detResult->detections[i].score > detResult->detections[best].score) {
+                best = i;
+            }
+        }
+        if (best >= 0) {
+            rect = detResult->detections[best].expanded_face_rect;
+            haveRect = true;
+        }
+        mp_face_detector_release_result(detResult);
+    } else {
+        __android_log_print(ANDROID_LOG_WARN, kLogTag,
+                            "detector pass failed: %s",
+                            mp_face_detector_last_error(bridge->det));
+    }
 
-    bool ok = result && result->landmarks && result->landmarks_count >= FEM_MIN_LANDMARKS;
+    bool ok = false;
     float features[9];
-    if (ok) ok = extractFeatures(result->landmarks, result->landmarks_count, features);
-    mp_face_mesh_release_result(result);
+    if (haveRect) {
+        // 2) Attention landmark model on the detected face crop.
+        MpFaceMeshResult* result = mp_face_mesh_process_nv21(
+            bridge->mesh, &image, &rect, rotationDegrees, /*mirror=*/ 0);
+        ok = result && result->landmarks &&
+             result->landmarks_count >= FEM_MIN_LANDMARKS;
+        if (ok) ok = extractFeatures(result->landmarks, result->landmarks_count, features);
+        mp_face_mesh_release_result(result);
+    }
+
     env->ReleaseByteArrayElements(yBuf, y, JNI_ABORT);
     env->ReleaseByteArrayElements(vuBuf, vu, JNI_ABORT);
 
@@ -156,17 +239,30 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
 
 JNIEXPORT jlong JNICALL
 Java_com_eyegaze_EyegazeFaceMeshNative_nativeLastErrorCode(JNIEnv*, jclass, jlong handle) {
-    // No numeric code helper in mp_face_mesh; return 1 if an error is set by
-    // checking the string, to flag "library reported a failure".
-    const char* err = mp_face_mesh_last_error((const MpFaceMeshContext*) handle);
-    return (err != nullptr && *err != '\0') ? 1L : 0L;
+    // No numeric code helper in either context; return 1 if either side
+    // recorded an error, to flag "library reported a failure".
+    EyegazeBridge* bridge = asBridge(handle);
+    if (!bridge) return 0;
+    const char* meshErr = bridge->mesh ? mp_face_mesh_last_error(bridge->mesh) : nullptr;
+    if (meshErr && *meshErr != '\0') return 1L;
+    const char* detErr = bridge->det ? mp_face_detector_last_error(bridge->det) : nullptr;
+    if (detErr && *detErr != '\0') return 1L;
+    return 0L;
 }
 
 JNIEXPORT jstring JNICALL
 Java_com_eyegaze_EyegazeFaceMeshNative_nativeLastError(JNIEnv* env, jclass, jlong handle) {
-    const char* err = mp_face_mesh_last_error((const MpFaceMeshContext*) handle);
-    if (err == nullptr) err = "";
-    return env->NewStringUTF(err);
+    EyegazeBridge* bridge = asBridge(handle);
+    if (!bridge) return env->NewStringUTF("");
+    const char* meshErr = bridge->mesh ? mp_face_mesh_last_error(bridge->mesh) : nullptr;
+    if (!meshErr) meshErr = "";
+    const char* detErr = bridge->det ? mp_face_detector_last_error(bridge->det) : nullptr;
+    if (detErr && *detErr != '\0') {
+        char buf[512];
+        std::snprintf(buf, sizeof(buf), "mesh=%s detector=%s", meshErr, detErr);
+        return env->NewStringUTF(buf);
+    }
+    return env->NewStringUTF(meshErr);
 }
 
 }  // extern "C"
