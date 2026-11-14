@@ -154,9 +154,19 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     return out;
 }
 
-JNIEXPORT const char* JNICALL
+JNIEXPORT jlong JNICALL
+Java_com_eyegaze_EyegazeFaceMeshNative_nativeLastErrorCode(JNIEnv*, jclass, jlong handle) {
+    // No numeric code helper in mp_face_mesh; return 1 if an error is set by
+    // checking the string, to flag "library reported a failure".
+    const char* err = mp_face_mesh_last_error((const MpFaceMeshContext*) handle);
+    return (err != nullptr && *err != '\0') ? 1L : 0L;
+}
+
+JNIEXPORT jstring JNICALL
 Java_com_eyegaze_EyegazeFaceMeshNative_nativeLastError(JNIEnv* env, jclass, jlong handle) {
-    return mp_face_mesh_last_error(0);   // placeholder; may be unused
+    const char* err = mp_face_mesh_last_error((const MpFaceMeshContext*) handle);
+    if (err == nullptr) err = "";
+    return env->NewStringUTF(err);
 }
 
 }  // extern "C"
