@@ -236,7 +236,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
 
     MpFaceDetectorResult* detResult = mp_face_detector_process_nv21(
         bridge->det, &image, /*override_rect=*/ nullptr, rotationDegrees,
-        /*mirror=*/ 1, /*roi_transform=*/ nullptr);
+        /*mirror=*/ 0, /*roi_transform=*/ nullptr);
     MpNormalizedRect rect{};
     bool haveRect = false;
     if (detResult) {
@@ -266,7 +266,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     if (haveRect) {
         // 2) Attention landmark model on the detected face crop.
         MpFaceMeshResult* result = mp_face_mesh_process_nv21(
-            bridge->mesh, &image, &rect, rotationDegrees, /*mirror=*/ 1);
+            bridge->mesh, &image, &rect, rotationDegrees, /*mirror=*/ 0);
         if (result) {
             meshScore = result->score;
             meshLandmarks = result->landmarks_count;
