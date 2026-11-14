@@ -205,7 +205,8 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     jint yRowStride, jint vuRowStride,
     jint rotationDegrees) {
     jfloatArray out = env->NewFloatArray(FEATURE_COUNT);
-    jfloat dummy[FEATURE_COUNT] = { NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN };
+    jfloat dummy[FEATURE_COUNT];
+    for (int i = 0; i < FEATURE_COUNT; ++i) dummy[i] = NAN;
 
     EyegazeBridge* bridge = asBridge(handle);
     if (!bridge) {
