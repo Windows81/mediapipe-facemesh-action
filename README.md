@@ -4,9 +4,12 @@
 
 Three files, one goal: fast eye-region tracking in a plain Android app.
 
+Four files, two of which are JNI builds of the same source.
+
 - `libmediapipe_face_mesh.so` — the library that finds faces and computes landmarks (468 + 5 iris per eye).
 - `libmpfm_tensorflowlite_c.so` — the TFLite runtime that actually runs the model.
-- `libeygaze_mesh_jni.so` — a tiny JNI bridge from Java/Kotlin into the library.
+- `libeygaze_mesh_jni.so` — default JNI bridge: the original **9-float** feature vector (ax ay bx by nx ny izm izd zNose). Drop-in for any existing caller.
+- `libeygaze_mesh_jni15.so` — same source, extended **15-float** vector (the 9, plus eye aspect ratios, eye/inter-ocular widths, iris radii). Built specifically for the Surface Duo pipeline, where the tracking quality of the 9-float build was not adequate. The indices of the first 9 are identical between the two artifacts.
 
 ## How do I use this?
 
@@ -35,7 +38,7 @@ Three files, one goal: fast eye-region tracking in a plain Android app.
 **JNI bridge** (from Kotlin/Java):
 
 - `nativeCreate(modelPath: String, detectorPath: String): Long` — start tracking. Returns a handle; 0 when either model fails to initialise.
-- `nativeFeatureExtractNv21(handle, yBuf, vuBuf, width, height, yRowStride, vuRowStride, rotationDegrees): FloatArray` — one NV21 camera frame in, 9-float eye-feature vector out (NaN when no face).
+- `nativeFeatureExtractNv21(handle, yBuf, vuBuf, width, height, yRowStride, vuRowStride, rotationDegrees): FloatArray` — one NV21 camera frame in, 15-float vector out for `libeygaze_mesh_jni15.so` (9-float for `libeygaze_mesh_jni.so`); NaN-filled array when no face.
 - `nativeDestroy(handle: Long)` — stop tracking.
 
 **Plain C** (via your own JNI shim):
@@ -141,6 +144,23 @@ Watch for the two distinct failure modes:
   on first use), or insufficient contrast (very low light reads all-NaN).
 - **init failed** — the `.so` chain didn't load. If you see this, check
   `libmpfm_tensorflowlite_c.so` is under `jniLibs/<your-abi>/` next to `libmediapipe_face_mesh.so`.
+
+## Feature vector — two lengths, same order
+
+`nativeFeatureExtractNv21` fills and returns:
+
+| index | meaning |
+|-------|---------|
+| 0, 1 | `ax, ay` — iris offset A relative to eye A (normalized units) |
+| 2, 3 | `bx, by` — iris offset B relative to eye B |
+| 4, 5 | `nx, ny` — nose-tip offset relative to the between-eyes midpoint, / inter-ocular distance |
+| 6, 7 | `izm, izd` — mean / difference of iris z relative to eye-contour depth |
+| 8 | `zNose` — nose-tip depth relative to eye depth |
+| 9, 10 | `earA, earB` — eye aspect ratios (h/w), used for blink gating and as openness signal |
+| 11, 12 | `wAN, wBN` — eye A / B width divided by inter-ocular distance |
+| 13, 14 | `irisRA, irisRB` — iris radii (mean distance of the 5 iris points from their centroid) / eye width |
+
+`libeygaze_mesh_jni.so` (the default bridge) returns indices 0-8 only — the original schema. A caller built for 9 floats reads those same 0-8 from the 15-float array and behaves identically; the indices never change meaning between the two artifacts.
 
 ## Minimal example
 

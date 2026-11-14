@@ -52,6 +52,7 @@ jobs:
           mkdir -p dist/${{ matrix.abi }}
           cp build/${{ matrix.abi }}/libmediapipe_face_mesh.so dist/${{ matrix.abi }}/
           cp build/${{ matrix.abi }}/libeygaze_mesh_jni.so dist/${{ matrix.abi }}/
+          cp build/${{ matrix.abi }}/libeygaze_mesh_jni15.so dist/${{ matrix.abi }}/
           cp android/src/main/jniLibs/${{ matrix.abi }}/libmpfm_tensorflowlite_c.so dist/${{ matrix.abi }}/
           mkdir -p dist/${{ matrix.abi }}/models
           cp assets/models/face_landmark_with_attention.tflite dist/${{ matrix.abi }}/models/

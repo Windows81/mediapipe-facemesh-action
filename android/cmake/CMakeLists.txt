@@ -22,10 +22,20 @@ add_library(eygaze_mesh_jni SHARED
 set_target_properties(eygaze_mesh_jni PROPERTIES
   OUTPUT_NAME "eygaze_mesh_jni"
 )
-target_include_directories(eygaze_mesh_jni PRIVATE
+
+# Extended artifact: same source, 15-float feature vector,
+# built for the Surface Duo pipeline.
+add_library(eygaze_mesh_jni15 SHARED
+  "../../src/eygaze_mesh_jni.cc"
+)
+target_compile_definitions(eygaze_mesh_jni15 PRIVATE EYGAZE_FEATURES_15)
+set_target_properties(eygaze_mesh_jni15 PROPERTIES
+  OUTPUT_NAME "eygaze_mesh_jni15"
+)
+target_include_directories(eygaze_mesh_jni15 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
-target_link_libraries(eygaze_mesh_jni PRIVATE mediapipe_face_mesh log)
+target_link_libraries(eygaze_mesh_jni15 PRIVATE mediapipe_face_mesh log)
 
 set_target_properties(mediapipe_face_mesh PROPERTIES
   PUBLIC_HEADER "../../src/mediapipe_face.h"
@@ -47,6 +57,7 @@ if (ANDROID)
   # Support Android 15 16k page size
   target_link_options(mediapipe_face_mesh PRIVATE "-Wl,-z,max-page-size=16384")
   target_link_options(eygaze_mesh_jni PRIVATE "-Wl,-z,max-page-size=16384")
+  target_link_options(eygaze_mesh_jni15 PRIVATE "-Wl,-z,max-page-size=16384")
   # The bundled TensorFlow Lite runtime. Its SONAME must match the file name.
   # The symbols are versioned, and the Android loader resolves versioned
   # symbols by SONAME.

@@ -20,6 +20,17 @@
 
 namespace {
 
+// Two artifacts are built from this one source. The default libeygaze_mesh_jni.so
+// keeps the original 9-float feature vector (ax ay bx by nx ny izm izd zNose), a
+// drop-in for every existing caller. libeygaze_mesh_jni15.so emits the extended
+// 15-float vector (adds eye aspect ratios, eye/io widths, iris radii), built for
+// the Surface Duo pipeline, where the 9/6/7-float build under-fit the gaze map.
+#if defined(EYGAZE_FEATURES_15)
+#  define FEATURE_COUNT 15
+#else
+#  define FEATURE_COUNT 9
+#endif
+
 constexpr char kLogTag[] = "eyegaze";
 
 struct EyegazeBridge {
@@ -60,7 +71,26 @@ float eyeDxDySelectIris(const MpLandmark* lm, int irisI, int innerI, int outerI,
     return pick == 0 ? (p.x - cx) / w : (p.y - cy) / h;
 }
 
-bool extractFeatures(const MpLandmark* lm, int count, float* out9) {
+float irisRadius(const MpLandmark* lm, int irisStart, float normW) {
+    // Order-agnostic iris radius: mean distance of the 5 iris points from
+    // their own centroid, normalized by the eye width. Holds for whichever
+    // index inside the iris group is the center vs the ring.
+    float cx = 0.f, cy = 0.f, cz = 0.f;
+    for (int i = 0; i < 5; ++i) {
+        cx += lm[irisStart + i].x;
+        cy += lm[irisStart + i].y;
+        cz += lm[irisStart + i].z;
+    }
+    cx /= 5.f; cy /= 5.f; cz /= 5.f;
+    float r = 0.f;
+    for (int i = 0; i < 5; ++i) {
+        float dx = lm[irisStart + i].x - cx, dy = lm[irisStart + i].y - cy;
+        r += std::sqrt(dx * dx + dy * dy);
+    }
+    return (r / 5.f) / (normW < 1e-6f ? 1e-6f : normW);
+}
+
+bool extractFeatures(const MpLandmark* lm, int count, float* out15) {
     if (count < FEM_MIN_LANDMARKS) return false;
     float aDx = eyeDxDySelectIris(lm, IRIS_A, INNER_A, OUTER_A, TOP_A, BOT_A, 0);
     float aDy = eyeDxDySelectIris(lm, IRIS_A, INNER_A, OUTER_A, TOP_A, BOT_A, 1);
@@ -91,9 +121,15 @@ bool extractFeatures(const MpLandmark* lm, int count, float* out9) {
     float izm = (zA + zB) / 2.f;
     float izd = zA - zB;
     float zNose = (nose.z - (cAz + cBz) / 2.f) / io;
+    float irisRA = irisRadius(lm, IRIS_A, wA);
+    float irisRB = irisRadius(lm, IRIS_B, wB);
+    float wAN = wA / io, wBN = wB / io;
 
-    out9[0] = aDx; out9[1] = aDy; out9[2] = bDx; out9[3] = bDy;
-    out9[4] = nx;  out9[5] = ny;  out9[6] = izm; out9[7] = izd; out9[8] = zNose;
+    out15[0] = aDx; out15[1] = aDy; out15[2] = bDx; out15[3] = bDy;
+    out15[4] = nx;  out15[5] = ny;  out15[6] = izm; out15[7] = izd; out15[8] = zNose;
+    out15[9] = earA; out15[10] = earB;
+    out15[11] = wAN; out15[12] = wBN;
+    out15[13] = irisRA; out15[14] = irisRB;
     return true;
 }
 
@@ -160,7 +196,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeDestroy(JNIEnv*, jclass, jlong hand
     delete b;
 }
 
-// Returns a 9-float array, or an array of all NaNs when no valid mesh/face is found.
+// Returns a 15-float array, or an array of all NaNs when no valid mesh/face is found.
 JNIEXPORT jfloatArray JNICALL
 Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     JNIEnv* env, jclass, jlong handle,
@@ -168,12 +204,12 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     jint width, jint height,
     jint yRowStride, jint vuRowStride,
     jint rotationDegrees) {
-    jfloatArray out = env->NewFloatArray(9);
-    jfloat dummy[9] = { NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN };
+    jfloatArray out = env->NewFloatArray(FEATURE_COUNT);
+    jfloat dummy[FEATURE_COUNT] = { NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN };
 
     EyegazeBridge* bridge = asBridge(handle);
     if (!bridge) {
-        env->SetFloatArrayRegion(out, 0, 9, dummy);
+        env->SetFloatArrayRegion(out, 0, FEATURE_COUNT, dummy);
         return out;
     }
     jbyte* y = env->GetByteArrayElements(yBuf, nullptr);
@@ -181,7 +217,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     if (!y || !vu) {
         env->ReleaseByteArrayElements(yBuf, y, JNI_ABORT);
         env->ReleaseByteArrayElements(vuBuf, vu, JNI_ABORT);
-        env->SetFloatArrayRegion(out, 0, 9, dummy);
+        env->SetFloatArrayRegion(out, 0, FEATURE_COUNT, dummy);
         return out;
     }
     MpNv21Image image{};
@@ -223,7 +259,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     }
 
     bool ok = false;
-    float features[9];
+    float features[15];
     float meshScore = -1.0f;
     int meshLandmarks = 0;
     if (haveRect) {
@@ -261,7 +297,7 @@ Java_com_eyegaze_EyegazeFaceMeshNative_nativeFeatureExtractNv21(
     env->ReleaseByteArrayElements(vuBuf, vu, JNI_ABORT);
 
     const jfloat* src = ok ? features : dummy;
-    env->SetFloatArrayRegion(out, 0, 9, src);
+    env->SetFloatArrayRegion(out, 0, FEATURE_COUNT, src);
     return out;
 }
 
